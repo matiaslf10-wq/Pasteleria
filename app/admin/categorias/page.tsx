@@ -453,15 +453,14 @@ export default function AdminCategoriasPage() {
 
           {/* ✅ CLAVE MOBILE: contenedor scrolleable + tabla que puede achicarse */}
           <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-
-                // ✅ CLAVE: permite que la tabla se adapte sin reventar ancho
-                tableLayout: 'fixed',
-              }}
-            >
+<table
+  style={{
+    width: '100%',
+    borderCollapse: 'collapse',
+    tableLayout: 'auto',   // ✅ clave: no aplasta columnas
+    minWidth: 980,         // ✅ clave: evita “letra por letra”
+  }}
+>
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
                   <th style={{ padding: 10, width: 90 }}>Orden</th>
