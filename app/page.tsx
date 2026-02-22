@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import HomeCategories from '@/app/components/HomeCategories';
 import WhatsAppFloat from '@/app/components/WhatsAppFloat';
 import { headers } from 'next/headers';
@@ -43,37 +44,47 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-rose-50/60 font-sans antialiased">
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        {/* Hero centrado en el medio de la pantalla */}
-        <header className="min-h-[70vh] grid place-items-center text-center mb-8">
-          <div className="flex flex-col items-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white/70 px-4 py-2 text-sm text-rose-700 shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-rose-500" />
-              Pedidos por WhatsApp
-            </div>
+      <div className="mx-auto max-w-5xl px-6 py-6">
 
-            <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-rose-900 sm:text-6xl">
-              Dulce <span className="text-rose-600">Amor</span>
-            </h1>
+        {/* HERO compacto */}
+        <header className="text-center mb-10">
 
-            <p className="mt-4 max-w-2xl text-lg text-rose-700 sm:text-xl">
-              Servicio de lunch y mesa dulce
-            </p>
+          {/* Logo */}
+          <div className="flex justify-center mb-4">
+            <Image
+              src="/logoDA.png"   // 🔴 poné acá tu PNG transparente
+              alt="Dulce Amor Logo"
+              width={120}
+              height={120}
+              className="object-contain"
+              priority
+            />
           </div>
+
+          <h1 className="text-4xl font-extrabold tracking-tight text-rose-900 sm:text-5xl">
+            Dulce <span className="text-rose-600">Amor</span>
+          </h1>
+
+          <p className="mt-3 text-xl text-rose-700 sm:text-2xl font-medium">
+            Servicio de lunch y mesa dulce
+          </p>
         </header>
 
-        {/* Contenido */}
+        {/* Categorías */}
         <section className="rounded-3xl border border-rose-100 bg-white/80 p-4 shadow-sm sm:p-6">
           <HomeCategories categorias={categorias} />
         </section>
 
-        {/* Footer mini */}
         <footer className="mt-10 text-center text-sm text-rose-700">
-          <p className="opacity-90">Hecho con amor ✨ — Consultas y pedidos por WhatsApp</p>
+          <p className="opacity-90">
+            Hecho con amor ✨ — Consultas y pedidos por WhatsApp
+          </p>
         </footer>
 
-        {/* Floating WhatsApp */}
-        <WhatsAppFloat phoneInternational="+5491160286334" defaultMessage="Hola! Quiero hacer un pedido 😊" />
+        <WhatsAppFloat
+          phoneInternational="+5491160286334"
+          defaultMessage="Hola! Quiero hacer un pedido 😊"
+        />
       </div>
     </main>
   );
