@@ -48,7 +48,7 @@ export default function AdminCategoriasPage() {
   // form crear
   const [nombre, setNombre] = useState('');
   const [slug, setSlug] = useState('');
-  const [descripcion, setDescripcion] = useState(''); // ✅ NUEVO
+  const [descripcion, setDescripcion] = useState('');
   const [orden, setOrden] = useState<number>(0);
   const [activa, setActiva] = useState(true);
 
@@ -56,7 +56,7 @@ export default function AdminCategoriasPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
   const [editSlug, setEditSlug] = useState('');
-  const [editDescripcion, setEditDescripcion] = useState(''); // ✅ NUEVO
+  const [editDescripcion, setEditDescripcion] = useState('');
   const [editOrden, setEditOrden] = useState<number>(0);
   const [editActiva, setEditActiva] = useState(true);
 
@@ -170,7 +170,7 @@ export default function AdminCategoriasPage() {
       body: JSON.stringify({
         nombre: nombre.trim(),
         slug: finalSlug,
-        descripcion: descripcion.trim() ? descripcion.trim() : null, // ✅ NUEVO
+        descripcion: descripcion.trim() ? descripcion.trim() : null,
         orden: Number.isFinite(orden) ? orden : 0,
         activa,
       }),
@@ -186,7 +186,7 @@ export default function AdminCategoriasPage() {
     // reset form (la foto la limpiamos aparte)
     setNombre('');
     setSlug('');
-    setDescripcion(''); // ✅ NUEVO
+    setDescripcion('');
     setOrden(0);
     setActiva(true);
 
@@ -221,7 +221,7 @@ export default function AdminCategoriasPage() {
     setEditingId(c.id);
     setEditNombre(c.nombre ?? '');
     setEditSlug(c.slug ?? '');
-    setEditDescripcion(c.descripcion ?? ''); // ✅ NUEVO
+    setEditDescripcion(c.descripcion ?? '');
     setEditOrden(Number(c.orden ?? 0));
     setEditActiva(!!c.activa);
 
@@ -248,7 +248,7 @@ export default function AdminCategoriasPage() {
         body: JSON.stringify({
           nombre: editNombre.trim(),
           slug: finalSlug,
-          descripcion: editDescripcion.trim() ? editDescripcion.trim() : null, // ✅ NUEVO
+          descripcion: editDescripcion.trim() ? editDescripcion.trim() : null,
           orden: Number.isFinite(editOrden) ? editOrden : 0,
           activa: editActiva,
         }),
@@ -288,7 +288,7 @@ export default function AdminCategoriasPage() {
     <>
       <AdminNavBar title="Admin · Categorías" subtitle={email ? `Sesión: ${email}` : null} />
 
-      <main style={{ padding: 22, maxWidth: 1100, margin: '0 auto' }}>
+      <main style={{ padding: 'clamp(12px, 4vw, 22px)', maxWidth: 1100, margin: '0 auto' }}>
         {error && (
           <div
             style={{
@@ -314,7 +314,9 @@ export default function AdminCategoriasPage() {
               marginTop: 12,
               display: 'grid',
               gap: 12,
-              gridTemplateColumns: '1.2fr 1fr 0.5fr 0.5fr',
+
+              // ✅ responsive: en mobile se apila solo, en desktop arma columnas
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               alignItems: 'end',
             }}
           >
@@ -324,7 +326,7 @@ export default function AdminCategoriasPage() {
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 placeholder="Tortas"
-                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
               />
             </label>
 
@@ -334,7 +336,7 @@ export default function AdminCategoriasPage() {
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder="tortas"
-                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
               />
             </label>
 
@@ -344,7 +346,7 @@ export default function AdminCategoriasPage() {
                 value={String(orden)}
                 onChange={(e) => setOrden(parseInt(e.target.value || '0', 10))}
                 type="number"
-                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
               />
             </label>
 
@@ -353,14 +355,14 @@ export default function AdminCategoriasPage() {
               <select
                 value={activa ? '1' : '0'}
                 onChange={(e) => setActiva(e.target.value === '1')}
-                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
               >
                 <option value="1">Sí</option>
                 <option value="0">No</option>
               </select>
             </label>
 
-            {/* ✅ NUEVO: Descripción */}
+            {/* Descripción */}
             <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
               <span style={{ fontWeight: 700 }}>Descripción</span>
               <textarea
@@ -368,11 +370,11 @@ export default function AdminCategoriasPage() {
                 onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="Ej: Tortas clásicas y modernas para cumpleaños, eventos y celebraciones."
                 rows={3}
-                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', resize: 'vertical' }}
+                style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', resize: 'vertical', width: '100%' }}
               />
             </label>
 
-            {/* ✅ Crear: elegir foto (opcional). Se sube después de crear */}
+            {/* Crear: elegir foto (opcional). Se sube después de crear */}
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 ref={createFileInputRef}
@@ -403,7 +405,7 @@ export default function AdminCategoriasPage() {
                 Elegir foto
               </button>
 
-              <div style={{ fontSize: 12, color: createPicked ? '#666' : '#888' }}>
+              <div style={{ fontSize: 12, color: createPicked ? '#666' : '#888', maxWidth: '100%', overflowWrap: 'anywhere' }}>
                 {createPicked ? `Seleccionada: ${createPicked.name}` : 'Sin foto (opcional)'}
               </div>
 
@@ -431,7 +433,7 @@ export default function AdminCategoriasPage() {
 
         {/* Lista */}
         <section style={{ border: '1px solid #eee', borderRadius: 16, padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>Listado</h2>
             <button
               onClick={fetchCategorias}
@@ -449,17 +451,26 @@ export default function AdminCategoriasPage() {
             </button>
           </div>
 
-          <div style={{ marginTop: 12, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          {/* ✅ CLAVE MOBILE: contenedor scrolleable + tabla que puede achicarse */}
+          <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+
+                // ✅ CLAVE: permite que la tabla se adapte sin reventar ancho
+                tableLayout: 'fixed',
+              }}
+            >
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
-                  <th style={{ padding: 10 }}>Orden</th>
-                  <th style={{ padding: 10 }}>Imagen</th>
-                  <th style={{ padding: 10 }}>Nombre</th>
-                  <th style={{ padding: 10 }}>Slug</th>
-                  <th style={{ padding: 10, width: 420 }}>Descripción</th> {/* ✅ NUEVO */}
-                  <th style={{ padding: 10 }}>Activa</th>
-                  <th style={{ padding: 10, width: 360 }}>Acciones</th>
+                  <th style={{ padding: 10, width: 90 }}>Orden</th>
+                  <th style={{ padding: 10, width: 120 }}>Imagen</th>
+                  <th style={{ padding: 10, width: 200 }}>Nombre</th>
+                  <th style={{ padding: 10, width: 170 }}>Slug</th>
+                  <th style={{ padding: 10 }}>Descripción</th>
+                  <th style={{ padding: 10, width: 90 }}>Activa</th>
+                  <th style={{ padding: 10, width: 260 }}>Acciones</th>
                 </tr>
               </thead>
 
@@ -470,21 +481,28 @@ export default function AdminCategoriasPage() {
 
                   return (
                     <tr key={c.id} style={{ borderBottom: '1px solid #f2f2f2' }}>
-                      <td style={{ padding: 10 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top' }}>
                         {isEditing ? (
                           <input
                             type="number"
                             value={String(editOrden)}
                             onChange={(e) => setEditOrden(parseInt(e.target.value || '0', 10))}
-                            style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 90 }}
+                            style={{
+                              padding: 8,
+                              borderRadius: 10,
+                              border: '1px solid #ddd',
+                              width: '100%',
+                              maxWidth: 110,
+                              boxSizing: 'border-box',
+                            }}
                           />
                         ) : (
                           c.orden
                         )}
                       </td>
 
-                      <td style={{ padding: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                           <div
                             style={{
                               width: 56,
@@ -536,20 +554,13 @@ export default function AdminCategoriasPage() {
                                 )}
                               </>
                             ) : (
-                              <div
-                                style={{
-                                  width: 24,
-                                  height: 24,
-                                  borderRadius: 6,
-                                  background: '#eaeaea',
-                                }}
-                              />
+                              <div style={{ width: 24, height: 24, borderRadius: 6, background: '#eaeaea' }} />
                             )}
                           </div>
 
-                          {/* ✅ SOLO EN EDITAR: Elegir foto y subir automático */}
+                          {/* SOLO EN EDITAR: Elegir foto y subir automático */}
                           {isEditing ? (
-                            <div style={{ display: 'grid', gap: 6 }}>
+                            <div style={{ display: 'grid', gap: 6, minWidth: 0, width: '100%' }}>
                               <input
                                 ref={(el) => {
                                   fileInputById.current[c.id] = el;
@@ -561,8 +572,6 @@ export default function AdminCategoriasPage() {
                                   const file = e.currentTarget.files?.[0] ?? null;
                                   e.currentTarget.value = '';
                                   if (!file) return;
-
-                                  // ✅ auto-upload al elegir
                                   await uploadImage(c.id, file);
                                 }}
                               />
@@ -579,13 +588,15 @@ export default function AdminCategoriasPage() {
                                   color: 'white',
                                   cursor: isUploading || saving ? 'not-allowed' : 'pointer',
                                   fontWeight: 900,
-                                  width: 160,
+                                  width: '100%',
+                                  maxWidth: 220,
+                                  boxSizing: 'border-box',
                                 }}
                               >
                                 {isUploading ? 'Subiendo…' : 'Elegir foto'}
                               </button>
 
-                              <div style={{ fontSize: 12, color: '#777' }}>
+                              <div style={{ fontSize: 12, color: '#777', overflowWrap: 'anywhere' }}>
                                 (Se sube automáticamente al seleccionar)
                               </div>
                             </div>
@@ -593,7 +604,7 @@ export default function AdminCategoriasPage() {
                         </div>
                       </td>
 
-                      <td style={{ padding: 10 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                         {isEditing ? (
                           <input
                             value={editNombre}
@@ -601,27 +612,38 @@ export default function AdminCategoriasPage() {
                               setEditNombre(e.target.value);
                               if (!editSlug) setEditSlug(slugify(e.target.value));
                             }}
-                            style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 260 }}
+                            style={{
+                              padding: 8,
+                              borderRadius: 10,
+                              border: '1px solid #ddd',
+                              width: '100%',
+                              boxSizing: 'border-box',
+                            }}
                           />
                         ) : (
                           c.nombre
                         )}
                       </td>
 
-                      <td style={{ padding: 10 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                         {isEditing ? (
                           <input
                             value={editSlug}
                             onChange={(e) => setEditSlug(e.target.value)}
-                            style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 220 }}
+                            style={{
+                              padding: 8,
+                              borderRadius: 10,
+                              border: '1px solid #ddd',
+                              width: '100%',
+                              boxSizing: 'border-box',
+                            }}
                           />
                         ) : (
                           c.slug
                         )}
                       </td>
 
-                      {/* ✅ NUEVO: Descripción */}
-                      <td style={{ padding: 10 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                         {isEditing ? (
                           <textarea
                             value={editDescripcion}
@@ -632,21 +654,28 @@ export default function AdminCategoriasPage() {
                               padding: 8,
                               borderRadius: 10,
                               border: '1px solid #ddd',
-                              width: 380,
+                              width: '100%',
                               resize: 'vertical',
+                              boxSizing: 'border-box',
                             }}
                           />
                         ) : (
-                          <span style={{ color: '#666' }}>{c.descripcion ?? ''}</span>
+                          <span style={{ color: '#666', whiteSpace: 'pre-wrap' }}>{c.descripcion ?? ''}</span>
                         )}
                       </td>
 
-                      <td style={{ padding: 10 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top' }}>
                         {isEditing ? (
                           <select
                             value={editActiva ? '1' : '0'}
                             onChange={(e) => setEditActiva(e.target.value === '1')}
-                            style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd' }}
+                            style={{
+                              padding: 8,
+                              borderRadius: 10,
+                              border: '1px solid #ddd',
+                              width: '100%',
+                              boxSizing: 'border-box',
+                            }}
                           >
                             <option value="1">Sí</option>
                             <option value="0">No</option>
@@ -658,7 +687,7 @@ export default function AdminCategoriasPage() {
                         )}
                       </td>
 
-                      <td style={{ padding: 10 }}>
+                      <td style={{ padding: 10, verticalAlign: 'top' }}>
                         {!isEditing ? (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button
@@ -693,7 +722,7 @@ export default function AdminCategoriasPage() {
                             </button>
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button
                               onClick={() => saveEdit(c.id)}
                               disabled={saving || !!uploadingId}
