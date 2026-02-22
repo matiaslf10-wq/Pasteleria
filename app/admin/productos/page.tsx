@@ -296,21 +296,23 @@ export default function AdminProductosPage() {
     }
   }
 
-  async function uploadImages(productoId: string, files: FileList | File[]) {
-    setError(null);
-    if (!productoId) {
-      setError('ID de producto inválido.');
-      return;
-    }
+async function uploadImages(productoId: string, files: FileList | File[]) {
+  setError(null);
+  if (!productoId) {
+    setError('ID de producto inválido.');
+    return;
+  }
 
-    const list = Array.from(files ?? []);
-    if (list.length === 0) return;
+  const list = Array.from(files ?? []);
+  if (list.length === 0) return;
 
-    setUploadingId(productoId);
+  setUploadingId(productoId);
 
-    try {
+  try {
+    // ✅ subimos 1 por 1 (compatibilidad con backend que usa formData.get('files'))
+    for (const f of list) {
       const form = new FormData();
-      for (const f of list) form.append('files', f);
+      form.append('files', f);
 
       const res = await fetch(`/api/admin/productos/${productoId}/imagenes`, {
         method: 'POST',
@@ -319,16 +321,17 @@ export default function AdminProductosPage() {
 
       const txt = await res.text();
       if (!res.ok) throw new Error(`Error ${res.status}: ${txt}`);
-
-      const imgs = await fetchImagenesProducto(productoId);
-      setImagenesEnEstado(productoId, imgs);
-      await fetchProductos();
-    } catch (e: any) {
-      setError(e?.message ?? 'Error subiendo imágenes');
-    } finally {
-      setUploadingId(null);
     }
+
+    const imgs = await fetchImagenesProducto(productoId);
+    setImagenesEnEstado(productoId, imgs);
+    await fetchProductos();
+  } catch (e: any) {
+    setError(e?.message ?? 'Error subiendo imágenes');
+  } finally {
+    setUploadingId(null);
   }
+}
 
   async function setPortada(productoId: string, urlOrNull: string | null) {
     setError(null);
