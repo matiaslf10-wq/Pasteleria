@@ -29,29 +29,46 @@ export default function LoginClient() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // ✅ TS-safe: si falta configuración, cortamos antes de hooks que usan supabase
+  if (!supabase) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h1>Login</h1>
+        <div
+          style={{
+            marginTop: 12,
+            padding: 12,
+            borderRadius: 12,
+            border: '1px solid #eee',
+            background: '#fafafa',
+          }}
+        >
+          Faltan variables de entorno de Supabase (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).
+        </div>
+      </div>
+    );
+  }
+
+  // Si el middleware mandó ?err=no_admin, avisar y liberar busy
   useEffect(() => {
-    if (!supabase) {
-      setMsg('Faltan variables de entorno de Supabase.');
-      return;
-    }
     if (err === 'no_admin') {
       setMsg('Esta cuenta no tiene permisos de administrador. Iniciá sesión con otra cuenta.');
       setBusy(false);
     }
-  }, [supabase, err]);
+  }, [err]);
 
-  // Si viene no_admin, cerramos sesión para permitir cambiar de cuenta
+  // Si viene no_admin, cerrar sesión para permitir cambiar de cuenta
   useEffect(() => {
-    if (!supabase) return;
     let cancelled = false;
 
     async function handleNoAdmin() {
       if (err !== 'no_admin') return;
+
       try {
         await supabase.auth.signOut();
       } catch {}
@@ -64,14 +81,14 @@ export default function LoginClient() {
     }
 
     handleNoAdmin();
+
     return () => {
       cancelled = true;
     };
   }, [err, supabase]);
 
-  // Si ya hay sesión, ir a next
+  // Si ya hay sesión, ir a next (mejora UX)
   useEffect(() => {
-    if (!supabase) return;
     let cancelled = false;
 
     async function checkUser() {
@@ -83,6 +100,7 @@ export default function LoginClient() {
     }
 
     checkUser();
+
     return () => {
       cancelled = true;
     };
@@ -91,11 +109,6 @@ export default function LoginClient() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
-
-    if (!supabase) {
-      setMsg('Supabase no está configurado.');
-      return;
-    }
 
     const eTrim = email.trim().toLowerCase();
     if (!eTrim) return setMsg('Ingresá un email.');
@@ -118,6 +131,7 @@ export default function LoginClient() {
         return;
       }
 
+      // El middleware valida ADMIN_EMAILS. Si no es admin, vuelve a login?err=no_admin.
       router.replace(next);
       router.refresh();
 
@@ -130,7 +144,6 @@ export default function LoginClient() {
   }
 
   async function onLogout() {
-    if (!supabase) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -190,8 +203,17 @@ export default function LoginClient() {
 
           <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Email</div>
-              <div style={{ border: '1px solid rgba(0,0,0,0.10)', borderRadius: 14, padding: 10, background: 'rgba(255,255,255,0.9)' }}>
+              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
+                Email
+              </div>
+              <div
+                style={{
+                  border: '1px solid rgba(0,0,0,0.10)',
+                  borderRadius: 14,
+                  padding: 10,
+                  background: 'rgba(255,255,255,0.9)',
+                }}
+              >
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.currentTarget.value)}
@@ -199,15 +221,38 @@ export default function LoginClient() {
                   autoComplete="email"
                   placeholder="maria@pastel.com"
                   disabled={busy}
-                  style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 14, padding: 2 }}
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    fontSize: 14,
+                    padding: 2,
+                  }}
                 />
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Contraseña</div>
-              <div style={{ border: '1px solid rgba(0,0,0,0.10)', borderRadius: 14, padding: 10, background: 'rgba(255,255,255,0.9)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
+                Contraseña
+              </div>
+              <div
+                style={{
+                  border: '1px solid rgba(0,0,0,0.10)',
+                  borderRadius: 14,
+                  padding: 10,
+                  background: 'rgba(255,255,255,0.9)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 8,
+                    alignItems: 'center',
+                  }}
+                >
                   <input
                     value={password}
                     onChange={(e) => setPassword(e.currentTarget.value)}
@@ -215,7 +260,14 @@ export default function LoginClient() {
                     autoComplete="current-password"
                     placeholder="••••••••"
                     disabled={busy}
-                    style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 14, padding: 2 }}
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      fontSize: 14,
+                      padding: 2,
+                    }}
                   />
                   <button
                     type="button"
@@ -231,6 +283,8 @@ export default function LoginClient() {
                       opacity: busy ? 0.6 : 1,
                       whiteSpace: 'nowrap',
                     }}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    title={showPassword ? 'Ocultar' : 'Mostrar'}
                   >
                     {showPassword ? 'Ocultar' : 'Mostrar'}
                   </button>
@@ -240,7 +294,7 @@ export default function LoginClient() {
 
             <button
               type="submit"
-              disabled={busy || !supabase}
+              disabled={busy}
               style={{
                 marginTop: 2,
                 padding: '11px 12px',
@@ -256,7 +310,14 @@ export default function LoginClient() {
               {busy ? 'Ingresando…' : 'Ingresar'}
             </button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 10,
+                alignItems: 'center',
+              }}
+            >
               <div style={{ fontSize: 12, opacity: 0.7 }}>
                 destino: <code>{next}</code>
               </div>
@@ -264,7 +325,7 @@ export default function LoginClient() {
               <button
                 type="button"
                 onClick={onLogout}
-                disabled={busy || !supabase}
+                disabled={busy}
                 style={{
                   padding: '10px 12px',
                   borderRadius: 14,
