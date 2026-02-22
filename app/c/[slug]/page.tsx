@@ -200,11 +200,11 @@ export default async function CategoriaPage({ params }: { params: Promise<{ slug
       <ProductsGridClient
         categoriaNombre={categoria.nombre}
         productos={productos}
-        phoneInternational="+5491112345678"
+        phoneInternational="+5491160286334"
       />
 
       <WhatsAppFloat
-        phoneInternational="+5491112345678"
+        phoneInternational="+5491160286334"
         defaultMessage={`Hola! Quiero consultar por ${categoria.nombre} 😊`}
       />
     </main>

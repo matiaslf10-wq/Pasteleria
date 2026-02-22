@@ -42,22 +42,24 @@ export default async function HomePage() {
   const categorias = await getCategorias();
 
   return (
-    <main className="min-h-screen bg-rose-50/60">
+    <main className="min-h-screen bg-rose-50/60 font-sans antialiased">
       <div className="mx-auto max-w-5xl px-6 py-10">
-        {/* Header / Hero */}
-        <header className="mb-8 mt-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white/70 px-4 py-2 text-sm text-rose-700 shadow-sm">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
-            Pedidos por WhatsApp
+        {/* Hero centrado en el medio de la pantalla */}
+        <header className="min-h-[70vh] grid place-items-center text-center mb-8">
+          <div className="flex flex-col items-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white/70 px-4 py-2 text-sm text-rose-700 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              Pedidos por WhatsApp
+            </div>
+
+            <h1 className="mt-5 text-5xl font-extrabold tracking-tight text-rose-900 sm:text-6xl">
+              Dulce <span className="text-rose-600">Amor</span>
+            </h1>
+
+            <p className="mt-4 max-w-2xl text-lg text-rose-700 sm:text-xl">
+              Servicio de lunch y mesa dulce
+            </p>
           </div>
-
-          <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-rose-900 sm:text-5xl">
-            Pastelería <span className="text-rose-600">María</span>
-          </h1>
-
-          <p className="mt-3 max-w-2xl text-base text-rose-700 sm:text-lg">
-            Elegí una categoría para ver ejemplos. Te respondemos por WhatsApp para coordinar sabores, tamaño y entrega.
-          </p>
         </header>
 
         {/* Contenido */}
@@ -67,13 +69,11 @@ export default async function HomePage() {
 
         {/* Footer mini */}
         <footer className="mt-10 text-center text-sm text-rose-700">
-          <p className="opacity-90">
-            Hecho con amor ✨ — Consultas y pedidos por WhatsApp
-          </p>
+          <p className="opacity-90">Hecho con amor ✨ — Consultas y pedidos por WhatsApp</p>
         </footer>
 
         {/* Floating WhatsApp */}
-        <WhatsAppFloat phoneInternational="+5491112345678" defaultMessage="Hola! Quiero hacer un pedido 😊" />
+        <WhatsAppFloat phoneInternational="+5491160286334" defaultMessage="Hola! Quiero hacer un pedido 😊" />
       </div>
     </main>
   );
