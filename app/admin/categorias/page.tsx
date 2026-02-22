@@ -468,7 +468,7 @@ export default function AdminCategoriasPage() {
                   <th style={{ padding: 10, width: 120 }}>Imagen</th>
                   <th style={{ padding: 10, width: 200 }}>Nombre</th>
                   <th style={{ padding: 10, width: 170 }}>Slug</th>
-                  <th style={{ padding: 10 }}>Descripción</th>
+                  <th style={{ padding: 10, minWidth: 260 }}>Descripción</th>
                   <th style={{ padding: 10, width: 90 }}>Activa</th>
                   <th style={{ padding: 10, width: 260 }}>Acciones</th>
                 </tr>
@@ -604,7 +604,17 @@ export default function AdminCategoriasPage() {
                         </div>
                       </td>
 
-                      <td style={{ padding: 10, verticalAlign: 'top', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                      <td
+  style={{
+    padding: 10,
+    verticalAlign: 'top',
+    whiteSpace: 'normal',
+    overflowWrap: 'break-word', // ✅ corta por palabra (y si no se puede, recién ahí corta)
+    wordBreak: 'normal',        // ✅ evita cortar letra por letra
+    hyphens: 'auto',
+    lineHeight: 1.35,
+  }}
+>
                         {isEditing ? (
                           <input
                             value={editNombre}
