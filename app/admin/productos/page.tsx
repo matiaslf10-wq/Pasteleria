@@ -28,7 +28,7 @@ type Producto = {
   precio: number | null;
   activo: boolean;
   orden: number;
-  imagen_url?: string | null; // portada
+  imagen_url?: string | null; // portada legacy
   imagenes?: ProductoImagen[]; // galería
   created_at?: string;
   categoria?: { id: string; nombre: string; slug: string } | null;
@@ -51,6 +51,29 @@ function slugify(input: string) {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
+
+function extFromName(name: string) {
+  const parts = name.split('.');
+  const ext = parts.length > 1 ? parts.pop()!.toLowerCase() : 'jpg';
+  if (ext === 'jpeg') return 'jpg';
+  return ext;
+}
+
+function validateImageFile(file: File) {
+  if (!file.type?.startsWith('image/')) return 'El archivo debe ser una imagen';
+  const okExt = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+  if (!okExt) return 'Formato no soportado (solo jpg/png/webp)';
+  return null;
+}
+
+/**
+ * ✅ IMPORTANTE (alineado con tu backend JSON):
+ * Este admin sube la imagen DIRECTO a Supabase Storage (desde el browser)
+ * y luego llama a tu endpoint:
+ *   POST /api/admin/productos/:id/imagenes  (JSON { url, path })
+ *
+ * Tu endpoint de productos/imagenes ya está en modo JSON (1 sola imagen por producto).
+ */
 
 export default function AdminProductosPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
@@ -175,19 +198,20 @@ export default function AdminProductosPage() {
     setProductos((prev) => prev.map((p) => (p.id === productoId ? { ...p, imagenes } : p)));
   }
 
-  function addPendingFor(productoId: string, files: File[]) {
-    if (!files.length) return;
+  function replacePendingFor(productoId: string, file: File) {
+    // regla 1 sola imagen: reemplaza lo pendiente anterior
+    setPendingByProduct((prev) => {
+      const current = prev[productoId] ?? [];
+      current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
 
-    const pendings: PendingImage[] = files.map((file) => ({
-      key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
+      const nextOne: PendingImage = {
+        key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      };
 
-    setPendingByProduct((prev) => ({
-      ...prev,
-      [productoId]: [...(prev[productoId] ?? []), ...pendings],
-    }));
+      return { ...prev, [productoId]: [nextOne] };
+    });
   }
 
   function removePendingFor(productoId: string, key: string) {
@@ -197,6 +221,11 @@ export default function AdminProductosPage() {
       if (toRemove) URL.revokeObjectURL(toRemove.previewUrl);
 
       const next = current.filter((p) => p.key !== key);
+      if (next.length === 0) {
+        const copy = { ...prev };
+        delete copy[productoId];
+        return copy;
+      }
       return { ...prev, [productoId]: next };
     });
   }
@@ -211,16 +240,18 @@ export default function AdminProductosPage() {
     });
   }
 
-  function addCreatePending(files: File[]) {
-    if (!files.length) return;
-
-    const pendings: PendingImage[] = files.map((file) => ({
-      key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-
-    setCreatePending((prev) => [...prev, ...pendings]);
+  function replaceCreatePending(file: File) {
+    // regla 1 sola imagen: reemplaza lo pendiente anterior
+    setCreatePending((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      return [
+        {
+          key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        },
+      ];
+    });
   }
 
   function removeCreatePending(key: string) {
@@ -296,42 +327,59 @@ export default function AdminProductosPage() {
     }
   }
 
-async function uploadImages(productoId: string, files: FileList | File[]) {
-  setError(null);
-  if (!productoId) {
-    setError('ID de producto inválido.');
-    return;
+  async function uploadProductImageToStorageAndSave(productoId: string, file: File) {
+    // 1) validar
+    const err = validateImageFile(file);
+    if (err) throw new Error(err);
+
+    // 2) subir a storage (directo desde el browser)
+    const ext = extFromName(file.name);
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const storagePath = `productos/${productoId}/${filename}`;
+
+    const { error: upErr } = await supabase.storage.from('images').upload(storagePath, file, {
+      contentType: file.type || 'image/jpeg',
+      upsert: false,
+    });
+
+    if (upErr) throw new Error(upErr.message);
+
+    const { data: pub } = supabase.storage.from('images').getPublicUrl(storagePath);
+    const publicUrl = pub.publicUrl;
+
+    // 3) avisar al backend (JSON {url, path})
+    const res = await fetch(`/api/admin/productos/${productoId}/imagenes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: publicUrl, path: storagePath }),
+    });
+
+    const txt = await res.text();
+    if (!res.ok) throw new Error(`Error ${res.status}: ${txt}`);
+
+    return { publicUrl, storagePath };
   }
 
-  const list = Array.from(files ?? []);
-  if (list.length === 0) return;
-
-  setUploadingId(productoId);
-
-  try {
-    // ✅ subimos 1 por 1 (compatibilidad con backend que usa formData.get('files'))
-    for (const f of list) {
-      const form = new FormData();
-      form.append('files', f);
-
-      const res = await fetch(`/api/admin/productos/${productoId}/imagenes`, {
-        method: 'POST',
-        body: form,
-      });
-
-      const txt = await res.text();
-      if (!res.ok) throw new Error(`Error ${res.status}: ${txt}`);
+  async function uploadOneImage(productoId: string, file: File) {
+    setError(null);
+    if (!productoId) {
+      setError('ID de producto inválido.');
+      return;
     }
 
-    const imgs = await fetchImagenesProducto(productoId);
-    setImagenesEnEstado(productoId, imgs);
-    await fetchProductos();
-  } catch (e: any) {
-    setError(e?.message ?? 'Error subiendo imágenes');
-  } finally {
-    setUploadingId(null);
+    setUploadingId(productoId);
+    try {
+      await uploadProductImageToStorageAndSave(productoId, file);
+
+      const imgs = await fetchImagenesProducto(productoId);
+      setImagenesEnEstado(productoId, imgs);
+      await fetchProductos();
+    } catch (e: any) {
+      setError(e?.message ?? 'Error subiendo imagen');
+    } finally {
+      setUploadingId(null);
+    }
   }
-}
 
   async function setPortada(productoId: string, urlOrNull: string | null) {
     setError(null);
@@ -390,7 +438,6 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
     } catch (e: any) {
       setError(e?.message ?? 'Error eliminando imagen');
     } finally {
-      setUploadingId(productoId);
       setUploadingId(null);
     }
   }
@@ -531,8 +578,6 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                 marginTop: 12,
                 display: 'grid',
                 gap: 12,
-
-                // ✅ CAMBIO: responsive en mobile
                 gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 alignItems: 'end',
               }}
@@ -615,7 +660,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                 </select>
               </label>
 
-              {/* Crear: previews + selección */}
+              {/* Crear: preview + selección (1 sola imagen) */}
               <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 10 }}>
                 {createPending.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -631,6 +676,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                             background: '#fafafa',
                           }}
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={img.previewUrl}
                             alt="preview"
@@ -654,7 +700,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                             cursor: 'pointer',
                             fontWeight: 900,
                           }}
-                          title="Quitar del upload"
+                          title="Quitar"
                         >
                           ×
                         </button>
@@ -667,15 +713,20 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                   <input
                     ref={createFileInputRef}
                     type="file"
-                    accept="image/*"
-                    multiple
+                    accept="image/png,image/jpeg,image/webp"
                     style={{ display: 'none' }}
                     onChange={(e) => {
-                      const fileList = e.currentTarget.files;
-                      const list = fileList ? Array.from(fileList) : [];
+                      const f = e.currentTarget.files?.[0] ?? null;
                       e.currentTarget.value = '';
-                      if (!list.length) return;
-                      addCreatePending(list);
+                      if (!f) return;
+
+                      const v = validateImageFile(f);
+                      if (v) {
+                        setError(v);
+                        return;
+                      }
+
+                      replaceCreatePending(f);
                     }}
                   />
 
@@ -692,7 +743,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                       fontWeight: 900,
                     }}
                   >
-                    Elegir imágenes
+                    Elegir imagen
                   </button>
 
                   {createPending.length > 0 && (
@@ -705,10 +756,11 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
 
                           try {
                             const newId = await createProductoInternal();
-                            await uploadImages(newId, createPending.map((p) => p.file));
+                            const file = createPending[0].file;
+                            await uploadOneImage(newId, file);
                             clearCreatePending();
                           } catch (err: any) {
-                            setError(err?.message ?? 'Error creando + subiendo imágenes');
+                            setError(err?.message ?? 'Error creando + subiendo imagen');
                           } finally {
                             setUploadingId(null);
                           }
@@ -723,7 +775,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                           fontWeight: 900,
                         }}
                       >
-                        {uploadingId === 'create' ? 'Subiendo…' : `Crear + subir (${createPending.length})`}
+                        {uploadingId === 'create' ? 'Subiendo…' : 'Crear + subir'}
                       </button>
 
                       <button
@@ -743,7 +795,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                     </>
                   )}
 
-                  <span style={{ color: '#777', fontSize: 13 }}>(Elegís imágenes → preview → “Crear + subir”)</span>
+                  <span style={{ color: '#777', fontSize: 13 }}>(1 imagen por producto)</span>
                 </div>
               </div>
 
@@ -760,7 +812,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                   fontWeight: 800,
                 }}
               >
-                {saving ? 'Guardando…' : 'Crear (sin imágenes)'}
+                {saving ? 'Guardando…' : 'Crear (sin imagen)'}
               </button>
             </form>
           )}
@@ -789,17 +841,12 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
           {loading ? (
             <div style={{ marginTop: 12, color: '#666' }}>Cargando…</div>
           ) : (
-            // ✅ CAMBIO: wrapper con scroll “real” en mobile portrait
             <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
               <table
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-
-                  // ✅ CAMBIO: no aplastar columnas
                   tableLayout: 'auto',
-
-                  // ✅ CAMBIO: ancho mínimo para que no “rompa” contenido
                   minWidth: 1100,
                 }}
               >
@@ -863,6 +910,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                   }}
                                 >
                                   {cover ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                       src={cover}
                                       alt={p.nombre}
@@ -876,15 +924,15 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                             })()
                           ) : (
                             <div style={{ display: 'grid', gap: 10 }}>
-                              {/* EXISTENTES */}
+                              {/* EXISTENTE (1 sola) */}
                               <div style={{ display: 'grid', gap: 6 }}>
-                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Existentes (click = portada)</div>
+                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Existente</div>
 
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {galeria.length === 0 ? (
-                                    <div style={{ color: '#777', fontSize: 13 }}>Sin imágenes aún.</div>
+                                    <div style={{ color: '#777', fontSize: 13 }}>Sin imagen aún.</div>
                                   ) : (
-                                    galeria.map((img, idx) => {
+                                    galeria.slice(0, 1).map((img, idx) => {
                                       const isCover = !!p.imagen_url ? p.imagen_url === img.url : idx === 0;
                                       const isSetting = settingCoverId === p.id;
 
@@ -907,6 +955,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                               setPortada(p.id, img.url);
                                             }}
                                           >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
                                             <img
                                               src={img.url}
                                               alt={p.nombre}
@@ -979,12 +1028,12 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                 </div>
                               </div>
 
-                              {/* PREVIEW NUEVAS */}
+                              {/* PREVIEW NUEVA (1 sola) */}
                               <div style={{ display: 'grid', gap: 6 }}>
-                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Nuevas (preview)</div>
+                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Nueva (preview)</div>
 
                                 {pending.length === 0 ? (
-                                  <div style={{ color: '#777', fontSize: 13 }}>No seleccionaste nuevas todavía.</div>
+                                  <div style={{ color: '#777', fontSize: 13 }}>No seleccionaste nueva todavía.</div>
                                 ) : (
                                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                     {pending.map((pi) => (
@@ -999,6 +1048,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                             background: '#fafafa',
                                           }}
                                         >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
                                           <img
                                             src={pi.previewUrl}
                                             alt={pi.file.name}
@@ -1022,7 +1072,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                             cursor: 'pointer',
                                             fontWeight: 900,
                                           }}
-                                          title="Quitar del upload"
+                                          title="Quitar"
                                         >
                                           ×
                                         </button>
@@ -1038,15 +1088,20 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                   editFileInputsRef.current[p.id] = el;
                                 }}
                                 type="file"
-                                accept="image/*"
-                                multiple
+                                accept="image/png,image/jpeg,image/webp"
                                 style={{ display: 'none' }}
                                 onChange={(e) => {
-                                  const fileList = e.currentTarget.files;
-                                  const list = fileList ? Array.from(fileList) : [];
+                                  const f = e.currentTarget.files?.[0] ?? null;
                                   e.currentTarget.value = '';
-                                  if (!list.length) return;
-                                  addPendingFor(p.id, list);
+                                  if (!f) return;
+
+                                  const v = validateImageFile(f);
+                                  if (v) {
+                                    setError(v);
+                                    return;
+                                  }
+
+                                  replacePendingFor(p.id, f);
                                 }}
                               />
 
@@ -1065,7 +1120,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                     width: 160,
                                   }}
                                 >
-                                  Elegir nuevas
+                                  Elegir nueva
                                 </button>
 
                                 <button
@@ -1073,10 +1128,8 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                   disabled={pending.length === 0 || isUploading}
                                   onClick={async () => {
                                     if (!pending.length) return;
-                                    await uploadImages(
-                                      p.id,
-                                      pending.map((x) => x.file)
-                                    );
+                                    const file = pending[0].file;
+                                    await uploadOneImage(p.id, file);
                                     clearPendingFor(p.id);
                                   }}
                                   style={{
@@ -1089,11 +1142,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                     fontWeight: 900,
                                   }}
                                 >
-                                  {isUploading
-                                    ? 'Subiendo…'
-                                    : pending.length
-                                    ? `Subir nuevas (${pending.length})`
-                                    : 'Subir nuevas'}
+                                  {isUploading ? 'Subiendo…' : 'Subir nueva'}
                                 </button>
 
                                 {pending.length > 0 && (
@@ -1114,7 +1163,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                                 )}
                               </div>
 
-                              <div style={{ color: '#777', fontSize: 12 }}>(Elegís → preview → “Subir nuevas”)</div>
+                              <div style={{ color: '#777', fontSize: 12 }}>(1 imagen por producto)</div>
                             </div>
                           )}
                         </td>
@@ -1149,11 +1198,17 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
                           )}
                         </td>
 
-                        <td style={{ padding: 10 }}>{isEditing ? (
-                          <input value={editSlug} onChange={(e) => setEditSlug(e.target.value)} style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 200 }} />
-                        ) : (
-                          p.slug
-                        )}</td>
+                        <td style={{ padding: 10 }}>
+                          {isEditing ? (
+                            <input
+                              value={editSlug}
+                              onChange={(e) => setEditSlug(e.target.value)}
+                              style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 200 }}
+                            />
+                          ) : (
+                            p.slug
+                          )}
+                        </td>
 
                         <td style={{ padding: 10 }}>
                           {isEditing ? (
@@ -1286,7 +1341,7 @@ async function uploadImages(productoId: string, files: FileList | File[]) {
               </table>
 
               <p style={{ marginTop: 12, color: '#777', fontSize: 13 }}>
-                Tip: si la imagen no se ve, asegurate de que el bucket sea público o usar signed URLs.
+                Tip: si la imagen no se ve, asegurate de que el bucket <b>images</b> sea público.
               </p>
             </div>
           )}
