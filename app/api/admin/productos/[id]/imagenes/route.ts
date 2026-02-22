@@ -26,12 +26,16 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
 /**
  * POST JSON:
- * Body: { url: string, path: string }
+ * Body: { url: string, path: string, orden?: number, set_cover?: boolean }
  *
- * ✅ Regla: una sola imagen por producto.
- * - Borra las anteriores (DB + Storage)
- * - Inserta la nueva en orden=0
- * - Setea productos.imagen_url = url
+ * ✅ Regla: múltiples imágenes por producto.
+ * - NO borra las anteriores
+ * - Inserta nueva imagen con orden:
+ *    - si viene `orden`, usa ese
+ *    - si no, calcula max(orden)+1
+ * - Setea productos.imagen_url (portada) si:
+ *    - set_cover === true, o
+ *    - el producto no tenía portada aún
  *
  * Importante: el upload del archivo se hace en el CLIENTE directo a Supabase Storage
  * para evitar 413 en Vercel.
@@ -44,7 +48,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const supabase = supabaseService();
-  const bucket = 'images';
 
   // ✅ Evita 500 cuando llega FormData / algo que no es JSON
   const contentType = req.headers.get('content-type') || '';
@@ -71,48 +74,55 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const url = body?.url as string | undefined;
   const path = body?.path as string | undefined;
 
+  // opcionales
+  const setCover = Boolean(body?.set_cover);
+  const ordenFromBodyRaw = body?.orden;
+  const ordenFromBody =
+    typeof ordenFromBodyRaw === 'number' && Number.isFinite(ordenFromBodyRaw) ? ordenFromBodyRaw : null;
+
   if (!url || !path) {
     return NextResponse.json({ error: 'Falta url o path' }, { status: 400 });
   }
 
   try {
-    // 1) Traemos imágenes previas para limpiar storage
-    const prev = await supabase
-      .from('producto_imagenes')
-      .select('id,url,path,storage_path')
-      .eq('producto_id', id);
-
-    if (prev.error) {
-      console.log('[POST imagenes] DB read prev ERROR', prev.error);
-      return NextResponse.json({ error: prev.error.message }, { status: 400 });
+    // 1) obtener portada actual (para decidir si actualizar)
+    const prod = await supabase.from('productos').select('id,imagen_url').eq('id', id).single();
+    if (prod.error) {
+      console.log('[POST imagenes] DB read producto ERROR', prod.error);
+      return NextResponse.json({ error: prod.error.message }, { status: 400 });
     }
 
-    const prevPaths = (prev.data ?? [])
-      .map((r: any) => (r?.storage_path || r?.path) as string | null)
-      .filter((p: string | null): p is string => typeof p === 'string' && p.trim().length > 0);
+    const hasCover = !!prod.data?.imagen_url;
 
-    // 2) Borramos filas previas (regla 1 sola imagen)
-    const del = await supabase.from('producto_imagenes').delete().eq('producto_id', id);
-    if (del.error) {
-      console.log('[POST imagenes] DB delete prev ERROR', del.error);
-      return NextResponse.json({ error: del.error.message }, { status: 400 });
+    // 2) calcular orden si no vino
+    let ordenFinal = ordenFromBody;
+
+    if (ordenFinal == null) {
+      const maxQ = await supabase
+        .from('producto_imagenes')
+        .select('orden')
+        .eq('producto_id', id)
+        .order('orden', { ascending: false })
+        .limit(1);
+
+      if (maxQ.error) {
+        console.log('[POST imagenes] DB read max orden ERROR', maxQ.error);
+        return NextResponse.json({ error: maxQ.error.message }, { status: 400 });
+      }
+
+      const maxOrden = (maxQ.data?.[0]?.orden ?? -1) as number;
+      ordenFinal = Number.isFinite(maxOrden) ? maxOrden + 1 : 0;
     }
 
-    // 3) Limpiamos storage de previos (no frenamos si falla)
-    if (prevPaths.length) {
-      const rm = await supabase.storage.from(bucket).remove(prevPaths);
-      if (rm.error) console.log('[POST imagenes] storage remove prev ERROR', rm.error);
-    }
-
-    // 4) Insert DB nueva
+    // 3) insertar nueva imagen
     const ins = await supabase
       .from('producto_imagenes')
       .insert({
         producto_id: id,
         url,
         path,
-        storage_path: path,
-        orden: 0,
+        storage_path: path, // mantenemos compat
+        orden: ordenFinal,
       })
       .select('id,url,orden,created_at')
       .single();
@@ -122,9 +132,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: ins.error.message }, { status: 400 });
     }
 
-    // 5) Set cover siempre
-    const upCover = await supabase.from('productos').update({ imagen_url: url }).eq('id', id);
-    if (upCover.error) console.log('[POST imagenes] update cover ERROR', upCover.error);
+    // 4) actualizar portada si corresponde
+    if (setCover || !hasCover) {
+      const upCover = await supabase.from('productos').update({ imagen_url: url }).eq('id', id);
+      if (upCover.error) console.log('[POST imagenes] update cover ERROR', upCover.error);
+    }
 
     return NextResponse.json({ ok: true, data: [ins.data] });
   } catch (err: any) {

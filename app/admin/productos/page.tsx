@@ -17,6 +17,7 @@ type ProductoImagen = {
   url: string;
   orden: number;
   created_at?: string;
+  path?: string | null; // si tu API lo devuelve (opcional)
 };
 
 type Producto = {
@@ -66,19 +67,14 @@ function validateImageFile(file: File) {
   return null;
 }
 
-/**
- * ✅ IMPORTANTE (alineado con tu backend JSON):
- * Este admin sube la imagen DIRECTO a Supabase Storage (desde el browser)
- * y luego llama a tu endpoint:
- *   POST /api/admin/productos/:id/imagenes  (JSON { url, path })
- *
- * Tu endpoint de productos/imagenes ya está en modo JSON (1 sola imagen por producto).
- */
+function moneyARS(n: number) {
+  return `$${n}`;
+}
 
 export default function AdminProductosPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
-  const [email, setEmail] = useState<string | null>(null);
 
+  const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,19 +194,20 @@ export default function AdminProductosPage() {
     setProductos((prev) => prev.map((p) => (p.id === productoId ? { ...p, imagenes } : p)));
   }
 
-  function replacePendingFor(productoId: string, file: File) {
-    // regla 1 sola imagen: reemplaza lo pendiente anterior
+  function addPendingFor(productoId: string, files: File[]) {
     setPendingByProduct((prev) => {
       const current = prev[productoId] ?? [];
-      current.forEach((p) => URL.revokeObjectURL(p.previewUrl));
 
-      const nextOne: PendingImage = {
-        key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-        file,
-        previewUrl: URL.createObjectURL(file),
-      };
+      const next: PendingImage[] = [
+        ...current,
+        ...files.map((file) => ({
+          key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        })),
+      ];
 
-      return { ...prev, [productoId]: [nextOne] };
+      return { ...prev, [productoId]: next };
     });
   }
 
@@ -240,16 +237,15 @@ export default function AdminProductosPage() {
     });
   }
 
-  function replaceCreatePending(file: File) {
-    // regla 1 sola imagen: reemplaza lo pendiente anterior
+  function addCreatePending(files: File[]) {
     setCreatePending((prev) => {
-      prev.forEach((p) => URL.revokeObjectURL(p.previewUrl));
       return [
-        {
+        ...prev,
+        ...files.map((file) => ({
           key: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
           file,
           previewUrl: URL.createObjectURL(file),
-        },
+        })),
       ];
     });
   }
@@ -347,7 +343,7 @@ export default function AdminProductosPage() {
     const { data: pub } = supabase.storage.from('images').getPublicUrl(storagePath);
     const publicUrl = pub.publicUrl;
 
-    // 3) avisar al backend (JSON {url, path})
+    // 3) avisar al backend (una fila por imagen)
     const res = await fetch(`/api/admin/productos/${productoId}/imagenes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -360,22 +356,30 @@ export default function AdminProductosPage() {
     return { publicUrl, storagePath };
   }
 
-  async function uploadOneImage(productoId: string, file: File) {
-    setError(null);
-    if (!productoId) {
-      setError('ID de producto inválido.');
-      return;
-    }
+  async function uploadManyImages(productoId: string, files: File[]) {
+    if (!files.length) return;
 
+    setError(null);
     setUploadingId(productoId);
+
     try {
-      await uploadProductImageToStorageAndSave(productoId, file);
+      for (const f of files) {
+        await uploadProductImageToStorageAndSave(productoId, f);
+      }
 
       const imgs = await fetchImagenesProducto(productoId);
       setImagenesEnEstado(productoId, imgs);
       await fetchProductos();
+
+      // si no hay portada, seteamos la primera
+      const producto = productos.find((x) => x.id === productoId);
+      const hasCover = !!producto?.imagen_url;
+      if (!hasCover && imgs[0]?.url) {
+        await setPortada(productoId, imgs[0].url);
+      }
     } catch (e: any) {
-      setError(e?.message ?? 'Error subiendo imagen');
+      setError(e?.message ?? 'Error subiendo imágenes');
+      throw e;
     } finally {
       setUploadingId(null);
     }
@@ -660,7 +664,7 @@ export default function AdminProductosPage() {
                 </select>
               </label>
 
-              {/* Crear: preview + selección (1 sola imagen) */}
+              {/* Crear: preview + selección (MULTI) */}
               <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 10 }}>
                 {createPending.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -714,19 +718,20 @@ export default function AdminProductosPage() {
                     ref={createFileInputRef}
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
+                    multiple
                     style={{ display: 'none' }}
                     onChange={(e) => {
-                      const f = e.currentTarget.files?.[0] ?? null;
+                      const files = Array.from(e.currentTarget.files ?? []);
                       e.currentTarget.value = '';
-                      if (!f) return;
+                      if (!files.length) return;
 
-                      const v = validateImageFile(f);
-                      if (v) {
-                        setError(v);
+                      const bad = files.map(validateImageFile).find(Boolean);
+                      if (bad) {
+                        setError(bad);
                         return;
                       }
 
-                      replaceCreatePending(f);
+                      addCreatePending(files);
                     }}
                   />
 
@@ -743,7 +748,7 @@ export default function AdminProductosPage() {
                       fontWeight: 900,
                     }}
                   >
-                    Elegir imagen
+                    Elegir imágenes
                   </button>
 
                   {createPending.length > 0 && (
@@ -756,11 +761,11 @@ export default function AdminProductosPage() {
 
                           try {
                             const newId = await createProductoInternal();
-                            const file = createPending[0].file;
-                            await uploadOneImage(newId, file);
+                            const files = createPending.map((x) => x.file);
+                            await uploadManyImages(newId, files);
                             clearCreatePending();
                           } catch (err: any) {
-                            setError(err?.message ?? 'Error creando + subiendo imagen');
+                            setError(err?.message ?? 'Error creando + subiendo imágenes');
                           } finally {
                             setUploadingId(null);
                           }
@@ -795,7 +800,7 @@ export default function AdminProductosPage() {
                     </>
                   )}
 
-                  <span style={{ color: '#777', fontSize: 13 }}>(1 imagen por producto)</span>
+                  <span style={{ color: '#777', fontSize: 13 }}>({createPending.length} seleccionada/s)</span>
                 </div>
               </div>
 
@@ -812,7 +817,7 @@ export default function AdminProductosPage() {
                   fontWeight: 800,
                 }}
               >
-                {saving ? 'Guardando…' : 'Crear (sin imagen)'}
+                {saving ? 'Guardando…' : 'Crear (sin imágenes)'}
               </button>
             </form>
           )}
@@ -853,7 +858,7 @@ export default function AdminProductosPage() {
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
                     <th style={{ padding: 10 }}>Orden</th>
-                    <th style={{ padding: 10 }}>Imagen</th>
+                    <th style={{ padding: 10 }}>Imágenes</th>
                     <th style={{ padding: 10 }}>Producto</th>
                     <th style={{ padding: 10 }}>Slug</th>
                     <th style={{ padding: 10 }}>Categoría</th>
@@ -896,43 +901,49 @@ export default function AdminProductosPage() {
                               const cover = p.imagen_url ?? fallback;
 
                               return (
-                                <div
-                                  style={{
-                                    width: 56,
-                                    height: 56,
-                                    borderRadius: 12,
-                                    border: '1px solid #eee',
-                                    overflow: 'hidden',
-                                    background: '#fafafa',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                  }}
-                                >
-                                  {cover ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={cover}
-                                      alt={p.nombre}
-                                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                    />
-                                  ) : (
-                                    <span style={{ color: '#777', fontSize: 12 }}>Sin</span>
-                                  )}
+                                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                  <div
+                                    style={{
+                                      width: 56,
+                                      height: 56,
+                                      borderRadius: 12,
+                                      border: '1px solid #eee',
+                                      overflow: 'hidden',
+                                      background: '#fafafa',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    {cover ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={cover}
+                                        alt={p.nombre}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                      />
+                                    ) : (
+                                      <span style={{ color: '#777', fontSize: 12 }}>Sin</span>
+                                    )}
+                                  </div>
+
+                                  <div style={{ color: '#777', fontSize: 13 }}>
+                                    {galeria.length} img{galeria.length === 1 ? '' : 's'}
+                                  </div>
                                 </div>
                               );
                             })()
                           ) : (
                             <div style={{ display: 'grid', gap: 10 }}>
-                              {/* EXISTENTE (1 sola) */}
+                              {/* EXISTENTES */}
                               <div style={{ display: 'grid', gap: 6 }}>
-                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Existente</div>
+                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Existentes</div>
 
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {galeria.length === 0 ? (
-                                    <div style={{ color: '#777', fontSize: 13 }}>Sin imagen aún.</div>
+                                    <div style={{ color: '#777', fontSize: 13 }}>Sin imágenes aún.</div>
                                   ) : (
-                                    galeria.slice(0, 1).map((img, idx) => {
+                                    galeria.map((img, idx) => {
                                       const isCover = !!p.imagen_url ? p.imagen_url === img.url : idx === 0;
                                       const isSetting = settingCoverId === p.id;
 
@@ -1028,12 +1039,12 @@ export default function AdminProductosPage() {
                                 </div>
                               </div>
 
-                              {/* PREVIEW NUEVA (1 sola) */}
+                              {/* PREVIEW NUEVAS */}
                               <div style={{ display: 'grid', gap: 6 }}>
-                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Nueva (preview)</div>
+                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Nuevas (preview)</div>
 
                                 {pending.length === 0 ? (
-                                  <div style={{ color: '#777', fontSize: 13 }}>No seleccionaste nueva todavía.</div>
+                                  <div style={{ color: '#777', fontSize: 13 }}>No seleccionaste nuevas todavía.</div>
                                 ) : (
                                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                     {pending.map((pi) => (
@@ -1089,19 +1100,20 @@ export default function AdminProductosPage() {
                                 }}
                                 type="file"
                                 accept="image/png,image/jpeg,image/webp"
+                                multiple
                                 style={{ display: 'none' }}
                                 onChange={(e) => {
-                                  const f = e.currentTarget.files?.[0] ?? null;
+                                  const files = Array.from(e.currentTarget.files ?? []);
                                   e.currentTarget.value = '';
-                                  if (!f) return;
+                                  if (!files.length) return;
 
-                                  const v = validateImageFile(f);
-                                  if (v) {
-                                    setError(v);
+                                  const bad = files.map(validateImageFile).find(Boolean);
+                                  if (bad) {
+                                    setError(bad);
                                     return;
                                   }
 
-                                  replacePendingFor(p.id, f);
+                                  addPendingFor(p.id, files);
                                 }}
                               />
 
@@ -1117,10 +1129,10 @@ export default function AdminProductosPage() {
                                     color: 'white',
                                     cursor: 'pointer',
                                     fontWeight: 900,
-                                    width: 160,
+                                    width: 180,
                                   }}
                                 >
-                                  Elegir nueva
+                                  Elegir nuevas
                                 </button>
 
                                 <button
@@ -1128,9 +1140,13 @@ export default function AdminProductosPage() {
                                   disabled={pending.length === 0 || isUploading}
                                   onClick={async () => {
                                     if (!pending.length) return;
-                                    const file = pending[0].file;
-                                    await uploadOneImage(p.id, file);
-                                    clearPendingFor(p.id);
+                                    const files = pending.map((x) => x.file);
+                                    try {
+                                      await uploadManyImages(p.id, files);
+                                      clearPendingFor(p.id);
+                                    } catch {
+                                      // error ya seteado
+                                    }
                                   }}
                                   style={{
                                     padding: '8px 10px',
@@ -1142,7 +1158,7 @@ export default function AdminProductosPage() {
                                     fontWeight: 900,
                                   }}
                                 >
-                                  {isUploading ? 'Subiendo…' : 'Subir nueva'}
+                                  {isUploading ? 'Subiendo…' : `Subir seleccionadas (${pending.length})`}
                                 </button>
 
                                 {pending.length > 0 && (
@@ -1163,7 +1179,9 @@ export default function AdminProductosPage() {
                                 )}
                               </div>
 
-                              <div style={{ color: '#777', fontSize: 12 }}>(1 imagen por producto)</div>
+                              <div style={{ color: '#777', fontSize: 12 }}>
+                                Tip: clic en una imagen existente para setearla como <b>portada</b>.
+                              </div>
                             </div>
                           )}
                         </td>
@@ -1240,7 +1258,7 @@ export default function AdminProductosPage() {
                           ) : p.precio == null ? (
                             '—'
                           ) : (
-                            `$${p.precio}`
+                            moneyARS(p.precio)
                           )}
                         </td>
 
