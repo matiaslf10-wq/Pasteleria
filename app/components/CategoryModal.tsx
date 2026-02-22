@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useEffect } from 'react';
 import type { Category } from './CategoryCard';
 
@@ -24,144 +23,165 @@ export default function CategoryModal({
   if (!open || !category) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      onMouseDown={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,.45)',
-        zIndex: 60,
+    <div className="overlay" role="dialog" aria-modal="true" onMouseDown={onClose}>
+      <div className="panel" onMouseDown={(e) => e.stopPropagation()}>
+        {/* Imagen */}
+        <div className="media">
+          {category.imagen_url ? (
+            <img className="img" src={category.imagen_url} alt={category.nombre} />
+          ) : (
+            <div className="imgPlaceholder" />
+          )}
+        </div>
 
-        // ✅ centra y asegura márgenes en todas las pantallas
-        display: 'grid',
-        placeItems: 'center',
-        padding: 18,
-      }}
-    >
-      <div
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{
-          width: 'min(920px, 100%)',
-          borderRadius: 20,
-          background: 'white',
-          overflow: 'hidden',
-          boxShadow: '0 30px 80px rgba(0,0,0,.25)',
-
-          // ✅ clave: el panel nunca supera la altura del viewport
-          maxHeight: 'calc(100vh - 36px)',
-
-          // ✅ para poder scrollear el contenido sin que la imagen “empuje” todo
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {/* ✅ HERO (imagen) responsive */}
-        <div
-          style={{
-            // en desktop queda cerca de 260px, en mobile baja con el vh
-            height: 'min(260px, 32vh)',
-            background: category.imagen_url
-              ? `url(${category.imagen_url}) center/cover no-repeat`
-              : 'linear-gradient(135deg, #fde2e4, #e2f0ff)',
-            flex: '0 0 auto',
-          }}
-        />
-
-        {/* ✅ BODY con scroll interno si hace falta */}
-        <div
-          style={{
-            padding: 18,
-            overflowY: 'auto',
-            WebkitOverflowScrolling: 'touch', // mejor scroll en iOS
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 12,
-              alignItems: 'flex-start',
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 26,
-                  lineHeight: 1.1,
-                  wordBreak: 'break-word',
-                }}
-              >
-                {category.nombre}
-              </h2>
-
-              {category.descripcion && (
-                <p
-                  style={{
-                    margin: '8px 0 0',
-                    color: '#444',
-                    lineHeight: 1.45,
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {category.descripcion}
-                </p>
-              )}
+        {/* Contenido */}
+        <div className="content">
+          <div className="head">
+            <div className="titleWrap">
+              <h2 className="title">{category.nombre}</h2>
+              {category.descripcion && <p className="desc">{category.descripcion}</p>}
             </div>
 
-            <button
-              onClick={onClose}
-              style={{
-                height: 40,
-                width: 40,
-                borderRadius: 12,
-                border: '1px solid #eee',
-                background: '#fafafa',
-                cursor: 'pointer',
-                fontSize: 18,
-                flex: '0 0 auto',
-              }}
-              aria-label="Cerrar"
-            >
+            <button className="close" onClick={onClose} aria-label="Cerrar">
               ✕
             </button>
           </div>
 
-          <div
-            style={{
-              marginTop: 16,
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 10,
-              alignItems: 'center',
-            }}
-          >
-            <a
-              href={whatsappLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '12px 14px',
-                borderRadius: 14,
-                background: '#111',
-                color: 'white',
-                textDecoration: 'none',
-                fontWeight: 800,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Consultar por WhatsApp <span>→</span>
+          <div className="actions">
+            <a className="wa" href={whatsappLink} target="_blank" rel="noopener noreferrer">
+              Consultar por WhatsApp <span className="arrow">→</span>
             </a>
-
-            <span style={{ color: '#666' }}>(Luego acá mostramos productos)</span>
+            <span className="hint">(Luego acá mostramos productos)</span>
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        .overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 60;
+          background: rgba(0, 0, 0, 0.45);
+          display: grid;
+          place-items: center;
+          padding: 18px;
+        }
+
+        .panel {
+          box-sizing: border-box;
+          width: 920px;
+          max-width: calc(100vw - 36px);
+          max-height: calc(100vh - 36px);
+          background: #fff;
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.25);
+
+          display: grid;
+          grid-template-columns: 1fr; /* mobile: stack */
+        }
+
+        .media {
+          background: linear-gradient(135deg, #fde2e4, #e2f0ff);
+          height: 240px; /* mobile: imagen más chica */
+        }
+
+        .img,
+        .imgPlaceholder {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: cover;
+        }
+
+        .imgPlaceholder {
+          background: linear-gradient(135deg, #fde2e4, #e2f0ff);
+        }
+
+        .content {
+          box-sizing: border-box;
+          padding: 18px;
+          overflow: auto; /* si el texto crece, scrollea adentro */
+          overflow-wrap: anywhere; /* evita overflow por palabras largas */
+        }
+
+        .head {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+        }
+
+        .titleWrap {
+          min-width: 0;
+        }
+
+        .title {
+          margin: 0;
+          font-size: 26px;
+          line-height: 1.1;
+          color: #111;
+        }
+
+        .desc {
+          margin: 8px 0 0;
+          color: #444;
+          line-height: 1.45;
+        }
+
+        .close {
+          flex: 0 0 auto;
+          height: 40px;
+          width: 40px;
+          border-radius: 12px;
+          border: 1px solid #eee;
+          background: #fafafa;
+          cursor: pointer;
+          font-size: 18px;
+        }
+
+        .actions {
+          margin-top: 16px;
+          display: flex;
+          flex-wrap: wrap; /* clave: no fuerza ancho */
+          gap: 10px;
+          align-items: center;
+        }
+
+        .wa {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 14px;
+          border-radius: 14px;
+          background: #111;
+          color: #fff;
+          text-decoration: none;
+          font-weight: 800;
+
+          /* clave: NO nowrap, que envuelva si hace falta */
+          white-space: normal;
+        }
+
+        .arrow {
+          opacity: 0.9;
+        }
+
+        .hint {
+          color: #666;
+        }
+
+        /* Desktop: dos columnas (imagen izquierda, contenido derecha) */
+        @media (min-width: 768px) {
+          .panel {
+            grid-template-columns: 420px 1fr;
+          }
+          .media {
+            height: auto; /* que acompañe el alto del panel */
+            min-height: 360px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
