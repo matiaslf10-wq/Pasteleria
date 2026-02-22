@@ -25,7 +25,8 @@ export default function LoginClient() {
   const next = useMemo(() => safeNext(sp.get('next')), [sp]);
   const err = sp.get('err');
 
-  const [supabase] = useState(() => getSupabaseBrowser());
+  // puede ser null si faltan env en algún entorno (TS lo exige)
+  const supabase = useMemo(() => getSupabaseBrowser(), []);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,25 +35,14 @@ export default function LoginClient() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // ✅ TS-safe: si falta configuración, cortamos antes de hooks que usan supabase
-  if (!supabase) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h1>Login</h1>
-        <div
-          style={{
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            border: '1px solid #eee',
-            background: '#fafafa',
-          }}
-        >
-          Faltan variables de entorno de Supabase (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).
-        </div>
-      </div>
-    );
-  }
+  // Si falta configuración, mostramos msg (sin romper hooks)
+  useEffect(() => {
+    if (!supabase) {
+      setMsg(
+        'Faltan variables de entorno de Supabase (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY).'
+      );
+    }
+  }, [supabase]);
 
   // Si el middleware mandó ?err=no_admin, avisar y liberar busy
   useEffect(() => {
@@ -64,13 +54,16 @@ export default function LoginClient() {
 
   // Si viene no_admin, cerrar sesión para permitir cambiar de cuenta
   useEffect(() => {
+    if (!supabase) return;
+    const sb = supabase;
+
     let cancelled = false;
 
     async function handleNoAdmin() {
       if (err !== 'no_admin') return;
 
       try {
-        await supabase.auth.signOut();
+        await sb.auth.signOut();
       } catch {}
 
       if (!cancelled) {
@@ -89,10 +82,13 @@ export default function LoginClient() {
 
   // Si ya hay sesión, ir a next (mejora UX)
   useEffect(() => {
+    if (!supabase) return;
+    const sb = supabase;
+
     let cancelled = false;
 
     async function checkUser() {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await sb.auth.getUser();
       if (!cancelled && data.user) {
         router.replace(next);
         router.refresh();
@@ -110,13 +106,19 @@ export default function LoginClient() {
     e.preventDefault();
     setMsg(null);
 
+    if (!supabase) {
+      setMsg('Supabase no está configurado.');
+      return;
+    }
+    const sb = supabase;
+
     const eTrim = email.trim().toLowerCase();
     if (!eTrim) return setMsg('Ingresá un email.');
     if (!password) return setMsg('Ingresá tu contraseña.');
 
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await sb.auth.signInWithPassword({
         email: eTrim,
         password,
       });
@@ -131,7 +133,7 @@ export default function LoginClient() {
         return;
       }
 
-      // El middleware valida ADMIN_EMAILS. Si no es admin, vuelve a login?err=no_admin.
+      // El middleware valida ADMIN_EMAILS. Si no es admin, vuelve a /admin/login?err=no_admin.
       router.replace(next);
       router.refresh();
 
@@ -144,10 +146,13 @@ export default function LoginClient() {
   }
 
   async function onLogout() {
+    if (!supabase) return;
+    const sb = supabase;
+
     setBusy(true);
     setMsg(null);
     try {
-      await supabase.auth.signOut();
+      await sb.auth.signOut();
       setMsg('Sesión cerrada.');
     } finally {
       setBusy(false);
@@ -294,7 +299,7 @@ export default function LoginClient() {
 
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !supabase}
               style={{
                 marginTop: 2,
                 padding: '11px 12px',
@@ -325,7 +330,7 @@ export default function LoginClient() {
               <button
                 type="button"
                 onClick={onLogout}
-                disabled={busy}
+                disabled={busy || !supabase}
                 style={{
                   padding: '10px 12px',
                   borderRadius: 14,
