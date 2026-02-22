@@ -27,6 +27,13 @@ function slugify(input: string) {
     .replace(/^-|-$/g, '');
 }
 
+function extFromName(name: string) {
+  const parts = name.split('.');
+  const ext = parts.length > 1 ? parts.pop()!.toLowerCase() : 'jpg';
+  if (ext === 'jpeg') return 'jpg';
+  return ext;
+}
+
 export default function AdminCategoriasPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const [email, setEmail] = useState<string | null>(null);
@@ -102,6 +109,39 @@ export default function AdminCategoriasPage() {
     return null;
   }
 
+  /**
+   * ✅ NUEVO: sube directo a Supabase Storage (evita multipart en Vercel)
+   * y luego avisa al backend por JSON { url, path }.
+   *
+   * Requiere que el endpoint /api/admin/categorias/[id]/imagen acepte JSON.
+   */
+  async function uploadCategoriaToStorageAndSave(categoriaId: string, file: File) {
+    const ext = extFromName(file.name);
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const storagePath = `categorias/${categoriaId}/${filename}`;
+
+    const { error: upErr } = await supabase.storage.from('images').upload(storagePath, file, {
+      contentType: file.type || 'image/jpeg',
+      upsert: false,
+    });
+
+    if (upErr) throw new Error(upErr.message);
+
+    const { data: pub } = supabase.storage.from('images').getPublicUrl(storagePath);
+    const publicUrl = pub.publicUrl;
+
+    const res = await fetch(`/api/admin/categorias/${categoriaId}/imagen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: publicUrl, path: storagePath }),
+    });
+
+    const txt = await res.text();
+    if (!res.ok) throw new Error(`Error ${res.status}: ${txt}`);
+
+    return { publicUrl, storagePath };
+  }
+
   async function uploadImage(id: string, file: File) {
     setError(null);
 
@@ -113,16 +153,7 @@ export default function AdminCategoriasPage() {
 
     setUploadingId(id);
     try {
-      const form = new FormData();
-      form.append('file', file);
-
-      const res = await fetch(`/api/admin/categorias/${id}/imagen`, {
-        method: 'POST',
-        body: form,
-      });
-
-      const txt = await res.text();
-      if (!res.ok) throw new Error(`Error ${res.status}: ${txt}`);
+      await uploadCategoriaToStorageAndSave(id, file);
 
       // limpiar input para re-elegir el mismo archivo si quiere
       const inp = fileInputById.current[id];
@@ -314,8 +345,6 @@ export default function AdminCategoriasPage() {
               marginTop: 12,
               display: 'grid',
               gap: 12,
-
-              // ✅ responsive: en mobile se apila solo, en desktop arma columnas
               gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               alignItems: 'end',
             }}
@@ -451,16 +480,15 @@ export default function AdminCategoriasPage() {
             </button>
           </div>
 
-          {/* ✅ CLAVE MOBILE: contenedor scrolleable + tabla que puede achicarse */}
           <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
-<table
-  style={{
-    width: '100%',
-    borderCollapse: 'collapse',
-    tableLayout: 'auto',   // ✅ clave: no aplasta columnas
-    minWidth: 980,         // ✅ clave: evita “letra por letra”
-  }}
->
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                tableLayout: 'auto',
+                minWidth: 980,
+              }}
+            >
               <thead>
                 <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
                   <th style={{ padding: 10, width: 90 }}>Orden</th>
@@ -519,6 +547,7 @@ export default function AdminCategoriasPage() {
                           >
                             {c.imagen_url ? (
                               <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={c.imagen_url}
                                   alt={c.nombre}
@@ -604,16 +633,16 @@ export default function AdminCategoriasPage() {
                       </td>
 
                       <td
-  style={{
-    padding: 10,
-    verticalAlign: 'top',
-    whiteSpace: 'normal',
-    overflowWrap: 'break-word', // ✅ corta por palabra (y si no se puede, recién ahí corta)
-    wordBreak: 'normal',        // ✅ evita cortar letra por letra
-    hyphens: 'auto',
-    lineHeight: 1.35,
-  }}
->
+                        style={{
+                          padding: 10,
+                          verticalAlign: 'top',
+                          whiteSpace: 'normal',
+                          overflowWrap: 'break-word',
+                          wordBreak: 'normal',
+                          hyphens: 'auto',
+                          lineHeight: 1.35,
+                        }}
+                      >
                         {isEditing ? (
                           <input
                             value={editNombre}
