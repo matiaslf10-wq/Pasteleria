@@ -330,7 +330,6 @@ export default function AdminProductosPage() {
     }
   }
 
-  // ✅ Portada (acepta string o null)
   async function setPortada(productoId: string, urlOrNull: string | null) {
     setError(null);
     if (!productoId) return;
@@ -357,7 +356,6 @@ export default function AdminProductosPage() {
     }
   }
 
-  // ✅ delete con auto-portada si borrás la portada
   async function deleteImagen(productoId: string, imagenId: string) {
     setError(null);
 
@@ -389,6 +387,7 @@ export default function AdminProductosPage() {
     } catch (e: any) {
       setError(e?.message ?? 'Error eliminando imagen');
     } finally {
+      setUploadingId(productoId);
       setUploadingId(null);
     }
   }
@@ -494,7 +493,7 @@ export default function AdminProductosPage() {
     <>
       <AdminNavBar title="Admin · Productos" subtitle={email ? `Sesión: ${email}` : null} />
 
-      <main style={{ padding: 22, maxWidth: 1100, margin: '0 auto' }}>
+      <main style={{ padding: 'clamp(12px, 4vw, 22px)', maxWidth: 1100, margin: '0 auto' }}>
         {error && (
           <div
             style={{
@@ -529,7 +528,9 @@ export default function AdminProductosPage() {
                 marginTop: 12,
                 display: 'grid',
                 gap: 12,
-                gridTemplateColumns: '1fr 1fr 0.5fr 0.5fr',
+
+                // ✅ CAMBIO: responsive en mobile
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 alignItems: 'end',
               }}
             >
@@ -538,7 +539,7 @@ export default function AdminProductosPage() {
                 <select
                   value={categoriaId}
                   onChange={(e) => setCategoriaId(e.target.value)}
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 >
                   {categorias.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -554,7 +555,7 @@ export default function AdminProductosPage() {
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   placeholder="Torta Rogel"
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 />
               </label>
 
@@ -564,7 +565,7 @@ export default function AdminProductosPage() {
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
                   placeholder="torta-rogel"
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 />
               </label>
 
@@ -575,7 +576,7 @@ export default function AdminProductosPage() {
                   onChange={(e) => setPrecio(e.target.value)}
                   placeholder="12000"
                   inputMode="decimal"
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 />
               </label>
 
@@ -585,7 +586,7 @@ export default function AdminProductosPage() {
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Rogel clásico con dulce de leche y merengue."
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 />
               </label>
 
@@ -595,7 +596,7 @@ export default function AdminProductosPage() {
                   value={String(orden)}
                   onChange={(e) => setOrden(parseInt(e.target.value || '0', 10))}
                   type="number"
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 />
               </label>
 
@@ -604,7 +605,7 @@ export default function AdminProductosPage() {
                 <select
                   value={activo ? '1' : '0'}
                   onChange={(e) => setActivo(e.target.value === '1')}
-                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd' }}
+                  style={{ padding: 10, borderRadius: 12, border: '1px solid #ddd', width: '100%' }}
                 >
                   <option value="1">Sí</option>
                   <option value="0">No</option>
@@ -739,9 +740,7 @@ export default function AdminProductosPage() {
                     </>
                   )}
 
-                  <span style={{ color: '#777', fontSize: 13 }}>
-                    (Elegís imágenes → se previsualizan → “Crear + subir”)
-                  </span>
+                  <span style={{ color: '#777', fontSize: 13 }}>(Elegís imágenes → preview → “Crear + subir”)</span>
                 </div>
               </div>
 
@@ -766,7 +765,7 @@ export default function AdminProductosPage() {
 
         {/* Lista */}
         <section style={{ border: '1px solid #eee', borderRadius: 16, padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>Listado</h2>
 
             <button
@@ -787,8 +786,20 @@ export default function AdminProductosPage() {
           {loading ? (
             <div style={{ marginTop: 12, color: '#666' }}>Cargando…</div>
           ) : (
-            <div style={{ marginTop: 12, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            // ✅ CAMBIO: wrapper con scroll “real” en mobile portrait
+            <div style={{ marginTop: 12, overflowX: 'auto', maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+
+                  // ✅ CAMBIO: no aplastar columnas
+                  tableLayout: 'auto',
+
+                  // ✅ CAMBIO: ancho mínimo para que no “rompa” contenido
+                  minWidth: 1100,
+                }}
+              >
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: '1px solid #eee' }}>
                     <th style={{ padding: 10 }}>Orden</th>
@@ -864,9 +875,7 @@ export default function AdminProductosPage() {
                             <div style={{ display: 'grid', gap: 10 }}>
                               {/* EXISTENTES */}
                               <div style={{ display: 'grid', gap: 6 }}>
-                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>
-                                  Existentes (click = portada)
-                                </div>
+                                <div style={{ fontSize: 12, color: '#666', fontWeight: 800 }}>Existentes (click = portada)</div>
 
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                   {galeria.length === 0 ? (
@@ -1102,7 +1111,7 @@ export default function AdminProductosPage() {
                                 )}
                               </div>
 
-                              <div style={{ color: '#777', fontSize: 12 }}>(Elegís → se previsualizan → “Subir nuevas”)</div>
+                              <div style={{ color: '#777', fontSize: 12 }}>(Elegís → preview → “Subir nuevas”)</div>
                             </div>
                           )}
                         </td>
@@ -1137,17 +1146,11 @@ export default function AdminProductosPage() {
                           )}
                         </td>
 
-                        <td style={{ padding: 10 }}>
-                          {isEditing ? (
-                            <input
-                              value={editSlug}
-                              onChange={(e) => setEditSlug(e.target.value)}
-                              style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 200 }}
-                            />
-                          ) : (
-                            p.slug
-                          )}
-                        </td>
+                        <td style={{ padding: 10 }}>{isEditing ? (
+                          <input value={editSlug} onChange={(e) => setEditSlug(e.target.value)} style={{ padding: 8, borderRadius: 10, border: '1px solid #ddd', width: 200 }} />
+                        ) : (
+                          p.slug
+                        )}</td>
 
                         <td style={{ padding: 10 }}>
                           {isEditing ? (
