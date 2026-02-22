@@ -46,15 +46,36 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const supabase = supabaseService();
   const bucket = 'images';
 
+  // ✅ Evita 500 cuando llega FormData / algo que no es JSON
+  const contentType = req.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return NextResponse.json(
+      {
+        error: `Content-Type inválido (${contentType}). Este endpoint espera JSON { url, path }.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  let body: any;
   try {
-    const body = await req.json();
-    const url = body?.url as string | undefined;
-    const path = body?.path as string | undefined;
+    body = await req.json();
+  } catch (err: any) {
+    // ✅ Evita 500 por JSON mal formado
+    return NextResponse.json(
+      { error: `JSON inválido: ${err?.message ?? 'no se pudo parsear'}` },
+      { status: 400 }
+    );
+  }
 
-    if (!url || !path) {
-      return NextResponse.json({ error: 'Falta url o path' }, { status: 400 });
-    }
+  const url = body?.url as string | undefined;
+  const path = body?.path as string | undefined;
 
+  if (!url || !path) {
+    return NextResponse.json({ error: 'Falta url o path' }, { status: 400 });
+  }
+
+  try {
     // 1) Traemos imágenes previas para limpiar storage
     const prev = await supabase
       .from('producto_imagenes')
@@ -67,8 +88,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     }
 
     const prevPaths = (prev.data ?? [])
-      .map((r) => r.storage_path || r.path)
-      .filter((p): p is string => !!p);
+      .map((r: any) => (r?.storage_path || r?.path) as string | null)
+      .filter((p: string | null): p is string => typeof p === 'string' && p.trim().length > 0);
 
     // 2) Borramos filas previas (regla 1 sola imagen)
     const del = await supabase.from('producto_imagenes').delete().eq('producto_id', id);

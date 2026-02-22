@@ -136,6 +136,9 @@ export async function PATCH(req: Request) {
 
   // Patch parcial permitido
   const patch: any = {};
+
+  // OJO: imagen_url es legacy. Idealmente se maneja desde /imagenes,
+  // pero lo dejamos por compatibilidad.
   const allowed = ['categoria_id', 'nombre', 'slug', 'descripcion', 'precio', 'activo', 'orden', 'imagen_url'];
 
   for (const k of allowed) {
@@ -157,6 +160,7 @@ export async function DELETE(req: Request) {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabase = supabaseService();
+  const bucket = 'images';
 
   // DELETE /api/admin/productos?id=UUID
   const { searchParams } = new URL(req.url);
@@ -164,9 +168,29 @@ export async function DELETE(req: Request) {
 
   if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 });
 
-  // Si no tenés FK con ON DELETE CASCADE, borramos imágenes primero
-  await supabase.from('producto_imagenes').delete().eq('producto_id', id);
+  // 1) Traer paths para borrar de storage
+  const prev = await supabase
+    .from('producto_imagenes')
+    .select('path,storage_path')
+    .eq('producto_id', id);
 
+  if (prev.error) return NextResponse.json({ error: prev.error.message }, { status: 400 });
+
+  const paths = (prev.data ?? [])
+    .map((r: any) => r.storage_path || r.path)
+    .filter((p: any): p is string => typeof p === 'string' && p.trim().length > 0);
+
+  // 2) Borrar DB de imágenes (si no tenés cascade)
+  const delImgs = await supabase.from('producto_imagenes').delete().eq('producto_id', id);
+  if (delImgs.error) return NextResponse.json({ error: delImgs.error.message }, { status: 400 });
+
+  // 3) Borrar storage (no frenamos si falla)
+  if (paths.length) {
+    const rm = await supabase.storage.from(bucket).remove(paths);
+    if (rm.error) console.log('[DELETE producto] storage remove ERROR', rm.error);
+  }
+
+  // 4) Borrar producto
   const { error } = await supabase.from('productos').delete().eq('id', id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
