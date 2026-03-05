@@ -52,7 +52,7 @@ export default async function HomePage() {
           {/* Logo */}
           <div className="flex justify-center mb-4">
             <Image
-              src="/logoDA.png"   // 🔴 poné acá tu PNG transparente
+              src="/logo-DA2.png"   // 🔴 poné acá tu PNG transparente
               alt="Dulce Amor Logo"
               width={120}
               height={120}
@@ -68,6 +68,16 @@ export default async function HomePage() {
           <p className="mt-3 text-xl text-rose-700 sm:text-2xl font-medium">
             Servicio de lunch y mesa dulce
           </p>
+
+            {/* ✅ BOTÓN QUIÉNES SOMOS */}
+  <div className="mt-6">
+    <a
+      href="/quienes-somos"
+      className="inline-block rounded-2xl bg-rose-600 px-6 py-3 text-white font-semibold shadow-md transition hover:bg-rose-700 hover:scale-105"
+    >
+      Conocenos 💗
+    </a>
+  </div>
         </header>
 
         {/* Categorías */}
