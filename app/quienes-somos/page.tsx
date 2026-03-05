@@ -48,13 +48,14 @@ export default function QuienesSomosPage() {
           </h2>
 
           <div className="rounded-3xl overflow-hidden border border-rose-200 shadow-md">
-            <iframe
-              src="https://www.google.com/maps?q=Dragones+7329+Barrio+Los+Ceibos&output=embed"
-              width="100%"
-              height="350"
-              style={{ border: 0 }}
-              loading="lazy"
-            />
+<iframe
+  src="https://www.google.com/maps?q=Dragones+7329,+Gonzalez+Catan,+Buenos+Aires,+Argentina&output=embed"
+  width="100%"
+  height="350"
+  style={{ border: 0 }}
+  loading="lazy"
+  referrerPolicy="no-referrer-when-downgrade"
+/>
           </div>
         </div>
 
